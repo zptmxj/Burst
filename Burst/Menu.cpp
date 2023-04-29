@@ -217,14 +217,14 @@ void Menu::OnBnClickedButton1()
                             CTime curTime(TTime.GetYear(), TTime.GetMonth(), TTime.GetDay(), TTime.GetHour(), TTime.GetMinute(), 0);
                             CTime attendTime(TTime.GetYear(), TTime.GetMonth(), TTime.GetDay(), _ttoi(atH), _ttoi(atM), 0);
 
-                            if(curTime>attendTime) nPoint = 15;
+                            if(curTime>attendTime) nPoint = 15; // 지각
                         }
-                        else
+                        else // 당일 투표
                             nPoint = 10;
                     }
                 }
                 else
-                    nPoint = 5;
+                    nPoint = 5; // 미 투표
 
                 date.Format("%04d-%02d-%02d", TTime.GetYear(), TTime.GetMonth(), TTime.GetDay());
                 time.Format("%02d:%02d:%02d", TTime.GetHour(), TTime.GetMinute(), TTime.GetSecond());
