@@ -184,11 +184,11 @@ void Menu::OnBnClickedButton1()
         }
         else
         {
-            Temp temp;
             int nPoint = 20;
-            int return_value = temp.DoModal();  // 온도 체크
-            if (return_value == IDOK)
-            {
+            //Temp temp;
+            //int return_value = temp.DoModal();  // 온도 체크
+            //if (return_value == IDOK)
+            //{
                 query.Format("SELECT* FROM attend WHERE ((DATE(attday) = '%s' AND TIME(atttime) > '07:00:00') OR (DATE(attday) = '%s' AND TIME(atttime) < '07:00:00')) and activity = 1 and uid = %s ", yestDay, toDay, m_MemberData[1]);
                 TRACE(query+ "\r\n");
                 query_status = mysql_query(m_pMYSQL, query.GetBuffer());
@@ -228,14 +228,14 @@ void Menu::OnBnClickedButton1()
 
                 date.Format("%04d-%02d-%02d", TTime.GetYear(), TTime.GetMonth(), TTime.GetDay());
                 time.Format("%02d:%02d:%02d", TTime.GetHour(), TTime.GetMinute(), TTime.GetSecond());
-                query.Format("insert into `checkin` (`uid`,`name`,`point`,`temp`,`date`,`checkin`) value ('%s','%s', %d, '%2.1f', '%s', '%s')", m_strMemberKey, m_strNickName, nPoint,temp.m_nTemp, date, time);
+                query.Format("insert into `checkin` (`uid`,`name`,`point`,`temp`,`date`,`checkin`) value ('%s','%s', %d, '%2.1f', '%s', '%s')", m_strMemberKey, m_strNickName, nPoint, 36.5, date, time);
                 query_status = mysql_query(m_pMYSQL, query.GetBuffer());
                 if (query_status == 0)
                     dlg.setDialog(_T("입실처리 되었습니다."), 1);
                 else
                     dlg.setDialog(_T("데이터 입력실패!!!"), 1);
                 dlg.DoModal();
-            }
+            //}
             CDialogEx::OnOK();
         }
 
@@ -251,19 +251,27 @@ void Menu::OnBnClickedButton2()
 {
     // TODO: 퇴실
     CTime cTime = CTime::GetCurrentTime();
+    CTime nextDay;
     CStringA date;
-    CStringA time;
-    CStringA uid;
-
-    int sysDay = cTime.GetDay();
-    int sysMonth = cTime.GetMonth();
-    int sysYear = cTime.GetYear();
-
-    date.Format("%04d-%02d-%02d", sysYear, sysMonth, sysDay);
-    int query_status;
+    CStringA ydate;
     CStringA query;
 
-    query = "select * from checkin where date = '" + date + "'";
+    int nday = 1;
+    if (cTime.GetHour() < 7) {
+        nextDay -= CTimeSpan(1, 0, 0, 0);
+        date.Format("'%04d-%02d-%02d'", cTime.GetYear(), cTime.GetMonth(), cTime.GetDay());
+        ydate.Format("'%04d-%02d-%02d'", cTime.GetYear(), cTime.GetMonth(), nextDay.GetDay());
+        query = "select * from checkin where ((DATE(date) = " + ydate + " AND TIME(checkin) > '07:00:00') OR (DATE(date) = " + date + " AND TIME(checkin) < '07:00:00'))";
+    }
+    else {
+        nextDay += CTimeSpan(1, 0, 0, 0);
+        date.Format("'%04d-%02d-%02d'", cTime.GetYear(), cTime.GetMonth(), cTime.GetDay());
+        ydate.Format("'%04d-%02d-%02d'", cTime.GetYear(), cTime.GetMonth(), nextDay.GetDay());
+        query = "select * from checkin where ((DATE(date) = " + date + " AND TIME(checkin) > '07:00:00') OR (DATE(date) = " + ydate + " AND TIME(checkin) < '07:00:00'))";
+    }
+
+    int query_status;
+
 
     query_status = mysql_query(m_pMYSQL, query.GetBuffer());
     m_Sql_Result = mysql_store_result(m_pMYSQL);
@@ -276,6 +284,7 @@ void Menu::OnBnClickedButton2()
 
         while ((m_Sql_Row = mysql_fetch_row(m_Sql_Result)) != 0)
         {
+            CStringA uid;
             uid.Format("%s", m_Sql_Row[1]);
             if (uid == m_strMemberKey)
             {
@@ -293,10 +302,11 @@ void Menu::OnBnClickedButton2()
         else
         {
             CStringA idx;
+            CStringA time;
             idx.Format("%s", m_Sql_Row[0]);
-            time.Format("%02d:%02d:%02d", cTime.GetHour(), cTime.GetMinute(), cTime.GetSecond());
-
-            query = "update checkin set checkout = '" + time + "' where idx = '" + idx + "'";
+            time.Format("'%02d:%02d:%02d'", cTime.GetHour(), cTime.GetMinute(), cTime.GetSecond());
+            date.Format("'%04d-%02d-%02d'", cTime.GetYear(), cTime.GetMonth(), cTime.GetDay());
+            query = "update checkin set dayout=" + date + ", checkout = " + time + " where idx = '" + idx + "'";
 
             query_status = mysql_query(m_pMYSQL, query.GetBuffer());
 

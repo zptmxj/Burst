@@ -19,12 +19,14 @@
 
 
 //#define DB_PORT 3333
-#define DB_HOST "168.126.179.44"
+//#define DB_HOST "168.126.179.44"
 //#define DB_USER "sing"
 //#define DB_PASS "12345"
 
-#define DB_PORT 302
-//#define DB_HOST "192.168.10.5"
+//#define DB_PORT 302
+#define DB_PORT 3306
+//#define DB_HOST "192.168.200.103"
+#define DB_HOST "124.50.58.116"
 #define DB_USER "sing"
 #define DB_PASS "12345"
 
@@ -234,8 +236,9 @@ BOOL CBurstDlg::OnInitDialog()
 	m_lcList.InsertColumn(2, _T("Point"), LVCFMT_CENTER, 60); // 두번째
 	m_lcList.InsertColumn(3, _T("Check In"), LVCFMT_CENTER, 100); // 세번째
 	m_lcList.InsertColumn(4, _T("Check Out"), LVCFMT_CENTER, 100); // 세번째
-	m_lcList.InsertColumn(5, _T("Note"), LVCFMT_CENTER, 100); // 세번째
-
+	//m_lcList.InsertColumn(5, _T("Note"), LVCFMT_CENTER, 100); // 세번째
+	m_lcList.InsertColumn(5, _T("use Time "), LVCFMT_CENTER, 100); // 세번째
+	
 	//m_lcList.InsertItem(0, _T("1"));
 	//m_lcList.SetItem(0, 1, LVIF_TEXT, TEXT("test1"), NULL, NULL, NULL, NULL);
 	//m_lcList.SetItem(0, 2, LVIF_TEXT, TEXT("test1-1"), NULL, NULL, NULL, NULL);
@@ -246,7 +249,7 @@ BOOL CBurstDlg::OnInitDialog()
 
 	if (blDB_Check)
 	{
-		reflash();
+		getQueryData();
 	}
 
 	//Join join;
@@ -380,7 +383,7 @@ void CBurstDlg::Receive_RS232(int nLength)
 					setTextView(_T("Fail (query_status == 0)"));
 				}
 
-				reflash();
+				getQueryData();
 				
 			}
 			else if (m_RecvBuff[4] != ACK_SUCCESS)
@@ -410,58 +413,124 @@ void CBurstDlg::addListCtrl(CStringA nick, CStringA point, CStringA checkIn, CSt
 	m_lcList.SetItem(idx, 1, LVIF_TEXT, str, NULL, NULL, NULL, NULL);
 	str = point;
 	m_lcList.SetItem(idx, 2, LVIF_TEXT, str, NULL, NULL, NULL, NULL);
-	str = checkIn;
+	str = checkIn.Left(5);
 	m_lcList.SetItem(idx, 3, LVIF_TEXT, str, NULL, NULL, NULL, NULL);
 	str = checkOut;
+	if (checkOut != "(null)")
+		str = checkOut.Left(5);
 	m_lcList.SetItem(idx, 4, LVIF_TEXT, str, NULL, NULL, NULL, NULL);
 	str = note;
 	m_lcList.SetItem(idx, 5, LVIF_TEXT, str, NULL, NULL, NULL, NULL);
 }
 
-void CBurstDlg::reflash()
-{
+void CBurstDlg::getQueryData() {
 	mysql_init(&m_MYSQL);
 	m_pMYSQL = mysql_real_connect(&m_MYSQL, DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT, (char*)NULL, 0);
 	mysql_set_character_set(m_pMYSQL, "euckr");
 	CTime cTime = CTime::GetCurrentTime();
+	CTime nextDay;
 	CStringA date;
-	CStringA time;
-	CStringA uid;
-
-	int sysDay = cTime.GetDay();
-	int sysMonth = cTime.GetMonth();
-	int sysYear = cTime.GetYear();
-
-	date.Format("%04d-%02d-%02d", sysYear, sysMonth, sysDay);
-	int query_status;
+	CStringA ydate;
 	CStringA query;
-	//query.Format("select * from checkin where uid='%s'", m_MemberData[1]);
-	//query.Format("select * from checkin where date = '%s'", date);
-	query = "select * from checkin where date = '" + date + "'";
 
-	query_status = mysql_query(m_pMYSQL, query.GetBuffer());
+	int nday = 1;
+	if (cTime.GetHour() < 7) {
+		nextDay -= CTimeSpan(1, 0, 0, 0);
+		date.Format("'%04d-%02d-%02d'", cTime.GetYear(), cTime.GetMonth(), cTime.GetDay());
+		ydate.Format("'%04d-%02d-%02d'", cTime.GetYear(), cTime.GetMonth(), nextDay.GetDay());
+		query = "select * from checkin where ((DATE(date) = " + ydate + " AND TIME(checkin) > '07:00:00') OR (DATE(date) = " + date + " AND TIME(checkin) < '07:00:00'))";
+	}
+	else {
+		nextDay += CTimeSpan(1, 0, 0, 0);
+		date.Format("'%04d-%02d-%02d'", cTime.GetYear(), cTime.GetMonth(), cTime.GetDay());
+		ydate.Format("'%04d-%02d-%02d'", cTime.GetYear(), cTime.GetMonth(), nextDay.GetDay());
+		query = "select * from checkin where ((DATE(date) = " + date + " AND TIME(checkin) > '07:00:00') OR (DATE(date) = " + ydate + " AND TIME(checkin) < '07:00:00'))";
+	}
+
+	//query = "select * from checkin where date = '" + date + "'";
+	query = "select * from checkin where ((DATE(date) = " + date + " AND TIME(checkin) > '07:00:00') OR (DATE(date) = " + ydate + " AND TIME(checkin) < '07:00:00'))";
+
+	int query_status = mysql_query(m_pMYSQL, query.GetBuffer());
 	m_Sql_Result = mysql_store_result(m_pMYSQL);
 	int field = mysql_num_fields(m_Sql_Result);
 
 	if (query_status == 0)
 	{
-		m_lcList.DeleteAllItems();
+		m_Users.RemoveAll();
 		while ((m_Sql_Row = mysql_fetch_row(m_Sql_Result)) != 0)
 		{
-			CStringA nick, point, checkIn, checkOut, note;
-			nick.Format("%s", m_Sql_Row[2]);
+			CStringA name, point, dayin, dayout, checkIn, checkOut, note;
+			name.Format("%s", m_Sql_Row[2]);
 			point.Format("%s", m_Sql_Row[3]);
+			dayin.Format("%s", m_Sql_Row[5]);
 			checkIn.Format("%s", m_Sql_Row[6]);
-			checkOut.Format("%s", m_Sql_Row[7]);
-			note.Format("%s", m_Sql_Row[4]);
+			dayout.Format("%s", m_Sql_Row[7]);
+			checkOut.Format("%s", m_Sql_Row[8]);
+			//note.Format("%s", m_Sql_Row[4]);
 
-			addListCtrl(nick, point, checkIn, checkOut, note);
+			Userinfo uinfo;
+			uinfo.name = name;
+			uinfo.point = point;
+			uinfo.dayin = dayin;
+			uinfo.checkIn = checkIn;
+			uinfo.dayout = dayout;
+			uinfo.checkOut = checkOut;
+			m_Users.Add(uinfo);
+
 		}
+		reflash();
 	}
 	else
 	{
 		m_edTimeView.SetWindowTextW(_T("reflash() DB Error"));
 	}
+}
+
+void CBurstDlg::reflash()
+{
+	m_lcList.DeleteAllItems();
+
+	for (int i = 0; i < m_Users.GetSize(); i++) {
+		Userinfo uinfo = m_Users.GetAt(i);
+		addListCtrl(uinfo.name, uinfo.point, uinfo.checkIn, uinfo.checkOut, getUseTime(uinfo.dayin, uinfo.checkIn, uinfo.dayout, uinfo.checkOut));
+	}
+}
+
+CStringA CBurstDlg::getUseTime(CStringA dayin, CStringA checkIn, CStringA dayout, CStringA checkOut) {
+	CTime cTime = CTime::GetCurrentTime();
+	CString timeSpan;
+	CStringA timeSpanA;
+	if (checkOut == "(null)") {
+		CTime* t1 = getStringToTime(dayin, checkIn);
+		CTimeSpan t3 = cTime - *t1;
+		timeSpan = t3.Format(L"%H:%M");
+		delete t1;
+	}
+	else {
+		CTime* t1 = getStringToTime(dayin, checkIn);
+		CTime* t2 = getStringToTime(dayout, checkOut);
+		CTimeSpan t3 = *t2 - *t1;
+		timeSpan = t3.Format(L"%H:%M");
+		delete t1;
+		delete t2;
+	}
+	timeSpanA = timeSpan;
+	return timeSpanA;
+}
+
+
+CTime* CBurstDlg::getStringToTime(CStringA day, CStringA time ){
+	int t1dy, t1dm, t1dd, t1th, t1tm, t1ts;
+	t1dy = atoi(day.Mid(0, 4));
+	t1dm = atoi(day.Mid(5, 2));
+	t1dd = atoi(day.Mid(8, 2));
+	t1th = atoi(time.Mid(0, 2));
+	t1tm = atoi(time.Mid(3, 2));
+	t1ts = atoi(time.Mid(6, 2));
+
+	CTime* t1 = new CTime(t1dy, t1dm, t1dd, t1th, t1tm, t1ts);
+
+	return t1;
 }
 
 void CBurstDlg::openMenu(int number)
@@ -529,15 +598,21 @@ void CBurstDlg::OnTimer(UINT_PTR nIDEvent)
 	{
 		CTime cTime = CTime::GetCurrentTime();
 		int getHour = cTime.GetHour();
+		int getMinute = cTime.GetMinute();
 
 		m_strTime.Format(_T("%04d-%02d-%02d\r\n%02d:%02d:%02d"), cTime.GetYear(), cTime.GetMonth(), cTime.GetDay(), cTime.GetHour(), cTime.GetMinute(), cTime.GetSecond());
 		m_edTimeView.SetWindowTextW(m_strTime);
+
+		if (m_nMinute != getMinute) {
+			reflash();
+			m_nMinute = getMinute;
+		}
 
 		if (m_nHour != getHour)
 		{
 			if (getHour == 7)
 			{
-				reflash();
+				getQueryData();
 			}
 			m_nHour = getHour;
 		}

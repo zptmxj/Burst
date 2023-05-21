@@ -9,6 +9,15 @@
 
 #include <mysql.h>
 
+struct Userinfo {
+	CStringA name;
+	CStringA point;
+	CStringA dayin;
+	CStringA checkIn;
+	CStringA dayout;
+	CStringA checkOut;
+	CStringA price;
+};
 
 // CBurstDlg 대화 상자
 class CBurstDlg : public CDialogEx
@@ -42,6 +51,10 @@ public:
 	int Query_Status;
 
 	int m_nHour;
+	int m_nMinute;
+
+	CArray< Userinfo, Userinfo> m_Users;
+
 	//
 	protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV 지원입니다.
@@ -53,8 +66,11 @@ protected:
 
 	// 생성된 메시지 맵 함수
 	virtual BOOL OnInitDialog();
+	void getQueryData();
 	void reflash();
 	void openMenu(int number);
+	CStringA getUseTime(CStringA dayin, CStringA checkIn, CStringA dayout, CStringA checkOut);
+	CTime* getStringToTime(CStringA day, CStringA time);
 	void addListCtrl(CStringA nick, CStringA point, CStringA checkIn, CStringA checkOut, CStringA note);
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
